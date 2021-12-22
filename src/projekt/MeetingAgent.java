@@ -47,7 +47,7 @@ public class MeetingAgent extends Agent {
 		{
 			protected void onTick()
 			{
-
+				//
 			}
 		});
 	}
