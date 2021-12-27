@@ -15,7 +15,7 @@ public class MeetingAgent extends Agent {
 
 	private MeetingAgentGui myGui;
 	private Calendar calendar;
-	private int dayOfMeeting = -1;
+	private int dayOfMeeting;
 
 
 	@Override
