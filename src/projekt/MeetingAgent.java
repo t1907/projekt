@@ -18,7 +18,7 @@ public class MeetingAgent extends Agent {
 
 	private MeetingAgentGui myGui;
 	private Calendar calendar;
-	private int dayOfMeeting;
+	private int dayOfMeeting = -1;
 
 
 	@Override
@@ -83,6 +83,14 @@ public class MeetingAgent extends Agent {
 		});
 	}
 
+	public boolean isDayAvailable(int day) {
+		Double preference = calendar.getCalendarSlots().get(day);
+		if (preference != null || preference > 0.0) {
+			return true;
+			}
+		return false;
+	}
+
 	@Override
 	protected void takeDown() {
 		try {
@@ -96,28 +104,41 @@ public class MeetingAgent extends Agent {
 	private class RequestMeeting extends Behaviour {
 		private MessageTemplate mt;
 		private int step = 0;
+		private int repliesCnt = 0;
 
 
 		public void action() {
-			switch (step) {
-				case 0:
+				if (step == 0) {
 					//call for proposal (CFP) to found agents
 					ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
 					for (int i = 0; i < meetAgents.length; ++i) {
 						cfp.addReceiver(meetAgents[i]);
 					}
-					cfp.setContent(dayOfMeeting);
+					cfp.setContent(Integer.toString(dayOfMeeting));
 					cfp.setConversationId("meetAgent");
-					cfp.setReplyWith("cfp"+System.currentTimeMillis()); //unique value
+					cfp.setReplyWith("cfp" + System.currentTimeMillis()); //unique value
+					cfp.setSender(getAID());
 					myAgent.send(cfp);
 					mt = MessageTemplate.and(MessageTemplate.MatchConversationId("meetAgent"),
 							MessageTemplate.MatchInReplyTo(cfp.getReplyWith()));
+					dayOfMeeting = -1;
 					step = 1;
-					break;
-			}
+				}
+				if (step == 1){
+					// reply
+					ACLMessage reply = myAgent.receive(mt);
+					if (reply != null) {
+						if (reply.getPerformative() == ACLMessage.AGREE) {
+							if (reply.getContent().equals("OK"))
+								step = 2;
+						}
+					} else
+						block();
+				}
+
 		}
 		public boolean done() {
-			return false;
+			return (step == 2);
 		}
 	}
 }
