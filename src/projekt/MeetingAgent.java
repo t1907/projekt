@@ -10,9 +10,6 @@ import jade.domain.FIPAException;
 import jade.domain.FIPAAgentManagement.DFAgentDescription;
 import jade.domain.FIPAAgentManagement.ServiceDescription;
 
-import java.util.ArrayList;
-import java.util.Random;
-
 public class MeetingAgent extends Agent {
 	public AID[] meetAgents;
 
@@ -68,7 +65,6 @@ public class MeetingAgent extends Agent {
 				}
 			}
 		});
-
 	}
 
 	public void requestMeeting(final int index)
@@ -91,6 +87,11 @@ public class MeetingAgent extends Agent {
 		return false;
 	}
 
+	public double getPreference(int dayOfMeeting){
+		Double preference = calendar.getCalendarSlots().get(dayOfMeeting);
+		return preference;
+	}
+
 	@Override
 	protected void takeDown() {
 		try {
@@ -108,37 +109,46 @@ public class MeetingAgent extends Agent {
 
 
 		public void action() {
-				if (step == 0) {
-					//call for proposal (CFP) to found agents
+			switch (step) {
+				case 0:
 					ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
 					for (int i = 0; i < meetAgents.length; ++i) {
 						cfp.addReceiver(meetAgents[i]);
 					}
-					cfp.setContent(Integer.toString(dayOfMeeting));
+					cfp.setContent(Double.toString(getPreference(dayOfMeeting)));
 					cfp.setConversationId("meetAgent");
 					cfp.setReplyWith("cfp" + System.currentTimeMillis()); //unique value
 					cfp.setSender(getAID());
 					myAgent.send(cfp);
 					mt = MessageTemplate.and(MessageTemplate.MatchConversationId("meetAgent"),
 							MessageTemplate.MatchInReplyTo(cfp.getReplyWith()));
-					dayOfMeeting = -1;
 					step = 1;
-				}
-				if (step == 1){
-					// reply
+				case 1:
 					ACLMessage reply = myAgent.receive(mt);
 					if (reply != null) {
-						if (reply.getPerformative() == ACLMessage.AGREE) {
-							if (reply.getContent().equals("OK"))
-								step = 2;
+						if (reply.getPerformative() == ACLMessage.PROPOSE) {
+							double agentPref = Double.parseDouble(reply.getContent());
+							if (bestSeller == null || price < bestPrice) {
+								bestPrice = price;
+								bestSeller = reply.getSender();
+							}
 						}
-					} else
+						repliesCnt++;
+						if (repliesCnt >= meetAgents.length) {
+							step = 2;
+						}
+					}
+					else {
 						block();
-				}
-
+					}
+					break;
+			}
 		}
 		public boolean done() {
-			return (step == 2);
+			if (step == 2) {
+				System.out.println("Attempt failed: " + dayOfMeeting + " not available for meet");
+			}
+			return ((step == 2) || step == 4);
 		}
 	}
 }
