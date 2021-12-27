@@ -18,13 +18,14 @@ public class MeetingAgent extends Agent {
 
 	private MeetingAgentGui myGui;
 	private Calendar calendar;
+	private int dayOfMeeting;
 
 
 	@Override
 	protected void setup() {
 		System.out.println("Hello! " + getAID().getLocalName() + " is ready for making meeting.");
 		calendar = new Calendar(30);
-		System.out.println(calendar);
+
 		myGui = new MeetingAgentGui(this);
 		myGui.display();
 
@@ -47,14 +48,58 @@ public class MeetingAgent extends Agent {
 		{
 			protected void onTick()
 			{
-				//
+				if (dayOfMeeting > 0){
+					DFAgentDescription template = new DFAgentDescription();
+					ServiceDescription sd = new ServiceDescription();
+					sd.setType("meetAgent");
+					template.addServices(sd);
+					try {
+						DFAgentDescription[] result = DFService.search(myAgent, template);
+						meetAgents = new AID[result.length];
+						for (int i = 0; i < result.length; ++i) {
+							meetAgents[i] = result[i].getName();
+						}
+					} catch (FIPAException fe) {
+						fe.printStackTrace();
+					}
+					myAgent.addBehaviour(new RequestMeeting());
+				}
+			}
+		});
+
+	}
+
+	public void requestMeeting(final int index)
+	{
+		addBehaviour(new OneShotBehaviour()
+		{
+			public void action()
+			{
+				dayOfMeeting = index;
+				System.out.println(getAID().getLocalName() + ": request meeting for " + dayOfMeeting + " accepted");
 			}
 		});
 	}
 
 	@Override
 	protected void takeDown() {
+		try {
+			DFService.deregister(this);
+		} catch (FIPAException fe) {
+			fe.printStackTrace();
+		}
 		System.out.println("Meeting agent " + getAID().getName()+ " terminating.");
 	}
 
+	private class RequestMeeting extends Behaviour {
+		private MessageTemplate mt;
+		private int step = 0;
+
+		public void action() {
+
+		}
+		public boolean done() {
+			return false;
+		}
+	}
 }

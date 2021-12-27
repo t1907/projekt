@@ -15,7 +15,7 @@ class MeetingAgentGui extends JFrame {
 		myAgent = a;
 		
 		JPanel p = new JPanel();
-		p.setLayout(new GridLayout(2, 2));
+		p.setLayout(new GridLayout(1, 1));
 		p.add(new JLabel("Day for meeting:"));
 		dayField = new JTextField(15);
 		p.add(dayField);
@@ -26,7 +26,7 @@ class MeetingAgentGui extends JFrame {
 			public void actionPerformed(ActionEvent ev) {
 				try {
 					String day = dayField.getText().trim();
-					//myAgent.requestMeeting(Integer.parseInt(day));
+					myAgent.requestMeeting(Integer.parseInt(day));
 					dayField.setText("");
 				}
 				catch (Exception e) {
