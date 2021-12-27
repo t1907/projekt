@@ -54,10 +54,12 @@ public class MeetingAgent extends Agent {
 					sd.setType("meetAgent");
 					template.addServices(sd);
 					try {
+						System.out.println(getAID().getLocalName() + ": the following agents have been found");
 						DFAgentDescription[] result = DFService.search(myAgent, template);
 						meetAgents = new AID[result.length];
 						for (int i = 0; i < result.length; ++i) {
 							meetAgents[i] = result[i].getName();
+							System.out.println(meetAgents[i].getLocalName());
 						}
 					} catch (FIPAException fe) {
 						fe.printStackTrace();
@@ -95,8 +97,24 @@ public class MeetingAgent extends Agent {
 		private MessageTemplate mt;
 		private int step = 0;
 
-		public void action() {
 
+		public void action() {
+			switch (step) {
+				case 0:
+					//call for proposal (CFP) to found agents
+					ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
+					for (int i = 0; i < meetAgents.length; ++i) {
+						cfp.addReceiver(meetAgents[i]);
+					}
+					cfp.setContent(dayOfMeeting);
+					cfp.setConversationId("meetAgent");
+					cfp.setReplyWith("cfp"+System.currentTimeMillis()); //unique value
+					myAgent.send(cfp);
+					mt = MessageTemplate.and(MessageTemplate.MatchConversationId("meetAgent"),
+							MessageTemplate.MatchInReplyTo(cfp.getReplyWith()));
+					step = 1;
+					break;
+			}
 		}
 		public boolean done() {
 			return false;
