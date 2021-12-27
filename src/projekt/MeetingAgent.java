@@ -115,7 +115,7 @@ public class MeetingAgent extends Agent {
 					for (int i = 0; i < meetAgents.length; ++i) {
 						cfp.addReceiver(meetAgents[i]);
 					}
-					cfp.setContent(Double.toString(getPreference(dayOfMeeting)));
+					cfp.setContent(Integer.toString(dayOfMeeting));
 					cfp.setConversationId("meetAgent");
 					cfp.setReplyWith("cfp" + System.currentTimeMillis()); //unique value
 					cfp.setSender(getAID());
@@ -126,18 +126,11 @@ public class MeetingAgent extends Agent {
 				case 1:
 					ACLMessage reply = myAgent.receive(mt);
 					if (reply != null) {
-						if (reply.getPerformative() == ACLMessage.PROPOSE) {
-							double agentPref = Double.parseDouble(reply.getContent());
-							/*
-							if (bestSeller == null || price < bestPrice) {
-								bestPrice = price;
-								bestSeller = reply.getSender();
+						if (reply.getPerformative() == ACLMessage.AGREE) {
+							repliesCnt++;
+							if (repliesCnt >= meetAgents.length) {
+								step = 2;
 							}
-							*/
-						}
-						repliesCnt++;
-						if (repliesCnt >= meetAgents.length) {
-							step = 2;
 						}
 					}
 					else {
@@ -150,7 +143,7 @@ public class MeetingAgent extends Agent {
 			if (step == 2) {
 				System.out.println("Attempt failed: " + dayOfMeeting + " not available for meet");
 			}
-			return ((step == 2) || step == 4);
+			return ((step == 2));
 		}
 	}
 }
