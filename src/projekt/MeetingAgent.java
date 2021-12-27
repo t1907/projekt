@@ -128,10 +128,12 @@ public class MeetingAgent extends Agent {
 					if (reply != null) {
 						if (reply.getPerformative() == ACLMessage.PROPOSE) {
 							double agentPref = Double.parseDouble(reply.getContent());
+							/*
 							if (bestSeller == null || price < bestPrice) {
 								bestPrice = price;
 								bestSeller = reply.getSender();
 							}
+							*/
 						}
 						repliesCnt++;
 						if (repliesCnt >= meetAgents.length) {
