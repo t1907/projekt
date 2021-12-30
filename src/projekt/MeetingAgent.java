@@ -11,11 +11,10 @@ import jade.domain.FIPAAgentManagement.DFAgentDescription;
 import jade.domain.FIPAAgentManagement.ServiceDescription;
 
 public class MeetingAgent extends Agent {
-	public AID[] meetAgents;
-
+	public AID[] meetAgentsList;
 	private MeetingAgentGui myGui;
 	private Calendar calendar;
-	private int dayOfMeeting = -1;
+	private int dayOfMeeting;
 
 	@Override
 	protected void setup() {
@@ -41,11 +40,9 @@ public class MeetingAgent extends Agent {
 		} catch (FIPAException fe) {
 			fe.printStackTrace();
 		}
-		addBehaviour(new TickerBehaviour(this, interval)
-		{
-			protected void onTick()
-			{
-				if (dayOfMeeting >= 0){
+		addBehaviour(new TickerBehaviour(this, interval) {
+			protected void onTick() {
+				if (dayOfMeeting >= 0) {
 					DFAgentDescription template = new DFAgentDescription();
 					ServiceDescription sd = new ServiceDescription();
 					sd.setType("meetAgent");
@@ -53,10 +50,10 @@ public class MeetingAgent extends Agent {
 					try {
 						System.out.println(getAID().getLocalName() + ": the following agents have been found");
 						DFAgentDescription[] result = DFService.search(myAgent, template);
-						meetAgents = new AID[result.length];
+						meetAgentsList = new AID[result.length];
 						for (int i = 0; i < result.length; ++i) {
-							meetAgents[i] = result[i].getName();
-							System.out.println(meetAgents[i].getLocalName());
+							meetAgentsList[i] = result[i].getName();
+							System.out.println(meetAgentsList[i].getLocalName());
 						}
 					} catch (FIPAException fe) {
 						fe.printStackTrace();
@@ -67,12 +64,9 @@ public class MeetingAgent extends Agent {
 		});
 	}
 
-	public void requestMeeting(final int index)
-	{
-		addBehaviour(new OneShotBehaviour()
-		{
-			public void action()
-			{
+	public void requestMeeting(final int index) {
+		addBehaviour(new OneShotBehaviour() {
+			public void action() {
 				dayOfMeeting = index;
 				System.out.println(getAID().getLocalName() + ": request meeting for " + dayOfMeeting + " accepted");
 			}
@@ -83,11 +77,11 @@ public class MeetingAgent extends Agent {
 		Double preference = calendar.getCalendarSlots().get(day);
 		if (preference != null || preference > 0.0) {
 			return true;
-			}
+		}
 		return false;
 	}
 
-	public double getPreference(int dayOfMeeting){
+	public double getPreference(int dayOfMeeting) {
 		Double preference = calendar.getCalendarSlots().get(dayOfMeeting);
 		return preference;
 	}
@@ -100,7 +94,7 @@ public class MeetingAgent extends Agent {
 			fe.printStackTrace();
 		}
 		myGui.dispose();
-		System.out.println("Meeting agent " + getAID().getName()+ " terminating.");
+		System.out.println("Meeting agent " + getAID().getName() + " terminating.");
 	}
 
 	private class RequestMeeting extends Behaviour {
@@ -111,50 +105,31 @@ public class MeetingAgent extends Agent {
 		public void action() {
 			if (step == 0) {
 				if (dayOfMeeting >= 0) {
-					System.out.println(getAID().getLocalName() + " is looking for " + dayOfMeeting);
+					System.out.println(getAID().getLocalName() + " is preparing meeting of " + dayOfMeeting);
 
 					ACLMessage cfp = new ACLMessage(ACLMessage.REQUEST);
-					for (AID a : meetAgents) {
+					for (AID a : meetAgentsList) {
 						cfp.addReceiver(a);
 					}
 					cfp.setContent(Integer.toString(dayOfMeeting));
-					cfp.setConversationId("meetAgent");
+					cfp.setConversationId("meeting");
 					cfp.setReplyWith("cfp " + System.currentTimeMillis()); //unique value
-					cfp.setSender(getAID());
+					cfp.setSender(getAID()); // set which participant is sending
 					myAgent.send(cfp);
-					mt = MessageTemplate.and(MessageTemplate.MatchConversationId("meetAgent"),
+					mt = MessageTemplate.and(MessageTemplate.MatchConversationId("meeting"),
 							MessageTemplate.MatchInReplyTo(cfp.getReplyWith()));
+
 					dayOfMeeting = -1;
 					step = 1;
-				}
-			} else if (step == 1) {
-				MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.REQUEST);
-				ACLMessage msg = myAgent.receive(mt);
-				if (msg != null) {
-					System.out.println(getAID().getLocalName() + " I received meeting request");
-					int day = Integer.parseInt(msg.getContent());
-					ACLMessage reply = msg.createReply();
-
-					if (day >= 0 && day < 30) {
-						reply.setPerformative(ACLMessage.AGREE);
-						reply.setContent(String.valueOf(getPreference(day)));
-					} else {
-						reply.setPerformative(ACLMessage.REFUSE);
-						reply.setContent("NOT OK");
-					}
-					myAgent.send(reply);
-					step = 2;
-				} else {
-					block();
 				}
 			}
 		}
 
 		@Override
 		public boolean done() {
-			if (step == 2)
+			if (step == 1)
 				System.out.println(getAID().getLocalName() + " done");
-			return (step == 2);
+			return (step == 1);
 		}
 	}
 }
