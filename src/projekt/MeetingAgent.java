@@ -15,20 +15,20 @@ public class MeetingAgent extends Agent {
 
 	private MeetingAgentGui myGui;
 	private Calendar calendar;
-	private int dayOfMeeting;
-
+	private int dayOfMeeting = -1;
 
 	@Override
 	protected void setup() {
 		System.out.println("Hello! " + getAID().getLocalName() + " is ready for making meeting.");
 		calendar = new Calendar(30);
-
 		myGui = new MeetingAgentGui(this);
 		myGui.display();
 
 		int interval = 20000;
 		Object[] args = getArguments();
 		if (args != null && args.length > 0) interval = Integer.parseInt(args[0].toString());
+
+		System.out.println(getAID().getLocalName() + " " + calendar.toString());
 
 		DFAgentDescription dfd = new DFAgentDescription();
 		dfd.setName(getAID());
@@ -45,7 +45,7 @@ public class MeetingAgent extends Agent {
 		{
 			protected void onTick()
 			{
-				if (dayOfMeeting > 0){
+				if (dayOfMeeting >= 0){
 					DFAgentDescription template = new DFAgentDescription();
 					ServiceDescription sd = new ServiceDescription();
 					sd.setType("meetAgent");
@@ -99,51 +99,62 @@ public class MeetingAgent extends Agent {
 		} catch (FIPAException fe) {
 			fe.printStackTrace();
 		}
+		myGui.dispose();
 		System.out.println("Meeting agent " + getAID().getName()+ " terminating.");
 	}
 
 	private class RequestMeeting extends Behaviour {
 		private MessageTemplate mt;
 		private int step = 0;
-		private int repliesCnt = 0;
 
-
+		@Override
 		public void action() {
-			switch (step) {
-				case 0:
-					ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
-					for (int i = 0; i < meetAgents.length; ++i) {
-						cfp.addReceiver(meetAgents[i]);
+			if (step == 0) {
+				if (dayOfMeeting >= 0) {
+					System.out.println(getAID().getLocalName() + " is looking for " + dayOfMeeting);
+
+					ACLMessage cfp = new ACLMessage(ACLMessage.REQUEST);
+					for (AID a : meetAgents) {
+						cfp.addReceiver(a);
 					}
 					cfp.setContent(Integer.toString(dayOfMeeting));
 					cfp.setConversationId("meetAgent");
-					cfp.setReplyWith("cfp" + System.currentTimeMillis()); //unique value
+					cfp.setReplyWith("cfp " + System.currentTimeMillis()); //unique value
 					cfp.setSender(getAID());
 					myAgent.send(cfp);
 					mt = MessageTemplate.and(MessageTemplate.MatchConversationId("meetAgent"),
 							MessageTemplate.MatchInReplyTo(cfp.getReplyWith()));
+					dayOfMeeting = -1;
 					step = 1;
-				case 1:
-					ACLMessage reply = myAgent.receive(mt);
-					if (reply != null) {
-						if (reply.getPerformative() == ACLMessage.AGREE) {
-							repliesCnt++;
-							if (repliesCnt >= meetAgents.length) {
-								step = 2;
-							}
-						}
+				}
+			} else if (step == 1) {
+				MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.REQUEST);
+				ACLMessage msg = myAgent.receive(mt);
+				if (msg != null) {
+					System.out.println(getAID().getLocalName() + " I received meeting request");
+					int day = Integer.parseInt(msg.getContent());
+					ACLMessage reply = msg.createReply();
+
+					if (day >= 0 && day < 30) {
+						reply.setPerformative(ACLMessage.AGREE);
+						reply.setContent(String.valueOf(getPreference(day)));
+					} else {
+						reply.setPerformative(ACLMessage.REFUSE);
+						reply.setContent("NOT OK");
 					}
-					else {
-						block();
-					}
-					break;
+					myAgent.send(reply);
+					step = 2;
+				} else {
+					block();
+				}
 			}
 		}
+
+		@Override
 		public boolean done() {
-			if (step == 2) {
-				System.out.println("Attempt failed: " + dayOfMeeting + " not available for meet");
-			}
-			return ((step == 2));
+			if (step == 2)
+				System.out.println(getAID().getLocalName() + " done");
+			return (step == 2);
 		}
 	}
 }
