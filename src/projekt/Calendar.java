@@ -10,8 +10,9 @@ public class Calendar {
     public Calendar() {
         numberOfSlots = 30;
         calendarSlots = new ArrayList<>();
+        calendarSlots.add(0, 0.0);
         Random random = new Random();
-        for (int i = 0; i < numberOfSlots; i++) {
+        for (int i = 1; i < numberOfSlots; i++) {
             double preference = random.nextInt(100) / 100.0;
             calendarSlots.add(i, preference);
         }
