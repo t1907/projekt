@@ -32,8 +32,8 @@ public class MeetingAgent extends Agent {
 		DFAgentDescription dfd = new DFAgentDescription();
 		dfd.setName(getAID());
 		ServiceDescription sd = new ServiceDescription();
-		sd.setType("meetAgent");
-		sd.setName("meetAgent");
+		sd.setType("MeetingAgent");
+		sd.setName("MeetingAgent");
 		dfd.addServices(sd);
 		try {
 			DFService.register(this, dfd);
@@ -45,7 +45,7 @@ public class MeetingAgent extends Agent {
 				if (dayOfMeeting >= 0) {
 					DFAgentDescription template = new DFAgentDescription();
 					ServiceDescription sd = new ServiceDescription();
-					sd.setType("meetAgent");
+					sd.setType("MeetingAgent");
 					template.addServices(sd);
 					try {
 						System.out.println(getAID().getLocalName() + ": the following agents have been found");
@@ -62,6 +62,7 @@ public class MeetingAgent extends Agent {
 				}
 			}
 		});
+		addBehaviour(new ResolveMeeting());
 	}
 
 	public void requestMeeting(final int index) {
@@ -122,14 +123,92 @@ public class MeetingAgent extends Agent {
 					dayOfMeeting = -1;
 					step = 1;
 				}
+			} else if (step == 1) {
+				ACLMessage reply = myAgent.receive(mt);
+				if (reply != null) {
+					System.out.println(getAID().getLocalName() + " is waiting for meeting proposal");
+					if (reply.getPerformative() == ACLMessage.AGREE) {
+						if (reply.getContent().equals("OK"))
+							step = 2;
+					}
+					else if (reply.getPerformative() == ACLMessage.REFUSE) {
+					}
+				} else
+					block();
 			}
 		}
 
 		@Override
 		public boolean done() {
-			if (step == 1)
+			if (step == 2)
 				System.out.println(getAID().getLocalName() + " done");
-			return (step == 1);
+			return (step == 2);
+		}
+	}
+	private class ResolveMeeting extends CyclicBehaviour {
+		private MessageTemplate mt;
+		private int day = -1;
+		private int step = 0;
+
+		@Override
+		public void action() {
+			if (step == 0) {
+				mt = MessageTemplate.MatchPerformative(ACLMessage.CFP);
+				ACLMessage msg = myAgent.receive(mt);
+				if (msg != null) {
+					day = Integer.parseInt(msg.getContent());
+					System.out.println(day);
+					ACLMessage reply = msg.createReply();
+
+					System.out.println(getAID().getLocalName() + ": " + msg.getSender().getLocalName() + " is asking if I can meet on day "
+							+ day);
+
+					if (isDayAvailable(day)) {
+						reply.setPerformative(ACLMessage.AGREE);
+						reply.setContent("OK");
+						step = 1;
+					} else {
+						reply.setPerformative(ACLMessage.REFUSE);
+						reply.setContent("not-available");
+						step = 2;
+					}
+					myAgent.send(reply);
+				} else {
+					block();
+				}
+			} else if (step == 1) {
+				mt = MessageTemplate.or(MessageTemplate.MatchPerformative(ACLMessage.PROPOSE),
+						MessageTemplate.MatchPerformative(ACLMessage.ACCEPT_PROPOSAL));
+
+				ACLMessage msg = myAgent.receive(mt);
+
+				if (msg != null) {
+					ACLMessage reply = msg.createReply();
+
+					if (msg.getPerformative() == ACLMessage.PROPOSE) {
+						day = Integer.parseInt(msg.getContent());
+
+						if (day >= 0) {
+							double pref = calendar.getCalendarSlots().get(day);
+							reply.setPerformative(ACLMessage.INFORM);
+							reply.setContent(String.valueOf(pref));
+						} else {
+							reply.setPerformative(ACLMessage.REFUSE);
+							reply.setContent("not-available");
+							step = 2;
+						}
+
+						myAgent.send(reply);
+					} else if (msg.getPerformative() == ACLMessage.ACCEPT_PROPOSAL) {
+						calendar.getCalendarSlots().set(day, 0.0);
+						System.out.println(getAID().getLocalName() + " " + calendar);
+						step = 0;
+						} else
+							step = 2;
+					}
+				} else {
+					block();
+			}
 		}
 	}
 }

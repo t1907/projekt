@@ -31,9 +31,6 @@ public class Calendar {
 
     @Override
     public String toString() {
-        return "Calendar{" +
-                "numberOfSlots=" + numberOfSlots +
-                ", calendarSlots=" + calendarSlots +
-                '}';
+        return "Calendar: " + calendarSlots;
     }
 }

@@ -21,6 +21,7 @@
     <java fork="true" classpath="jade/lib/jade.jar;build" classname="jade.Boot">
       <arg value="-gui" />
       <arg value="
+      Arranger:projekt.ArrangerAgent(10000);
       agent1:projekt.MeetingAgent(10000);
       agent2:projekt.MeetingAgent(10000);
       agent3:projekt.MeetingAgent(10000);
