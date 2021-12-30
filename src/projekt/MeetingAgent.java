@@ -19,7 +19,7 @@ public class MeetingAgent extends Agent {
 	@Override
 	protected void setup() {
 		System.out.println("Hello! " + getAID().getLocalName() + " is ready for making meeting.");
-		calendar = new Calendar(30);
+		calendar = new Calendar();
 		myGui = new MeetingAgentGui(this);
 		myGui.display();
 
@@ -27,7 +27,7 @@ public class MeetingAgent extends Agent {
 		Object[] args = getArguments();
 		if (args != null && args.length > 0) interval = Integer.parseInt(args[0].toString());
 
-		System.out.println(getAID().getLocalName() + " " + calendar.toString());
+		System.out.println(getAID().getLocalName() + " " + calendar);
 
 		DFAgentDescription dfd = new DFAgentDescription();
 		dfd.setName(getAID());

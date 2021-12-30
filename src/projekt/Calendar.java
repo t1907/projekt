@@ -4,14 +4,14 @@ import java.util.ArrayList;
 import java.util.Random;
 
 public class Calendar {
-    private int numberOfSlots;
+    private final int numberOfSlots;
     private ArrayList<Double> calendarSlots;
 
-    public Calendar(int numberOfSlots) {
-        this.numberOfSlots = numberOfSlots;
+    public Calendar() {
+        numberOfSlots = 30;
         calendarSlots = new ArrayList<>();
         Random random = new Random();
-        for (int i = 0; i < 30; i++) {
+        for (int i = 0; i < numberOfSlots; i++) {
             double preference = random.nextInt(100) / 100.0;
             calendarSlots.add(i, preference);
         }
@@ -19,10 +19,6 @@ public class Calendar {
 
     public int getNumberOfSlots() {
         return numberOfSlots;
-    }
-
-    public void setNumberOfSlots(int numberOfSlots) {
-        this.numberOfSlots = numberOfSlots;
     }
 
     public ArrayList<Double> getCalendarSlots() {
@@ -35,6 +31,9 @@ public class Calendar {
 
     @Override
     public String toString() {
-        return "Calendar: " + calendarSlots;
+        return "Calendar{" +
+                "numberOfSlots=" + numberOfSlots +
+                ", calendarSlots=" + calendarSlots +
+                '}';
     }
 }
