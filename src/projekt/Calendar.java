@@ -1,5 +1,6 @@
 package projekt;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Random;
 
@@ -32,6 +33,6 @@ public class Calendar {
 
     @Override
     public String toString() {
-        return "Calendar: " + calendarSlots;
+        return "Calendar " + calendarSlots;
     }
 }
