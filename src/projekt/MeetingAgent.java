@@ -76,15 +76,11 @@ public class MeetingAgent extends Agent {
 
 	public boolean isDayAvailable(int day) {
 		Double preference = calendar.getCalendarSlots().get(day);
-		if (preference != null || preference > 0.0) {
-			return true;
-		}
-		return false;
+		return preference != 0.0;
 	}
 
 	public double getPreference(int dayOfMeeting) {
-		Double preference = calendar.getCalendarSlots().get(dayOfMeeting);
-		return preference;
+		return calendar.getCalendarSlots().get(dayOfMeeting);
 	}
 
 	@Override
@@ -105,7 +101,7 @@ public class MeetingAgent extends Agent {
 		@Override
 		public void action() {
 			if (step == 0) {
-				if (dayOfMeeting > 0 && getPreference(dayOfMeeting) > 0.0) {
+				if (dayOfMeeting > 0) {
 					System.out.println(getAID().getLocalName() + ": is looking for meeting on day " + dayOfMeeting);
 
 					ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
@@ -120,7 +116,6 @@ public class MeetingAgent extends Agent {
 					mt = MessageTemplate.and(MessageTemplate.MatchConversationId("meeting"),
 							MessageTemplate.MatchInReplyTo(cfp.getReplyWith()));
 
-					dayOfMeeting = -1;
 					step = 1;
 				}
 			} else if (step == 1) {
@@ -162,8 +157,7 @@ public class MeetingAgent extends Agent {
 					day = Integer.parseInt(msg.getContent());
 					ACLMessage reply = msg.createReply();
 
-					System.out.println(getAID().getLocalName() + ": " + msg.getSender().getLocalName() + " is asking if I can meet on day "
-							+ day);
+					System.out.println(getAID().getLocalName() + ": " + msg.getSender().getLocalName() + " is asking if I can meet on day " + day);
 
 					if (isDayAvailable(day)) {
 						reply.setPerformative(ACLMessage.AGREE);
@@ -175,36 +169,17 @@ public class MeetingAgent extends Agent {
 						step = 2;
 					}
 					myAgent.send(reply);
-					System.out.println(reply);
-				} else {
+				}else {
 					block();
 				}
-			} else if (step == 1) {
-				mt = MessageTemplate.or(MessageTemplate.MatchPerformative(ACLMessage.PROPOSE),
-						MessageTemplate.MatchPerformative(ACLMessage.ACCEPT_PROPOSAL));
-				ACLMessage msg = myAgent.receive();
-				if (msg != null) {
-					ACLMessage reply = msg.createReply();
-					if (msg.getPerformative() == ACLMessage.PROPOSE) {
-						slot = Integer.parseInt(msg.getContent());
-						if (slot > 0) {
-							double preference = getPreference(day);
-							reply.setPerformative(ACLMessage.INFORM);
-							reply.setContent(String.valueOf(preference));
-						} else {
-							reply.setPerformative(ACLMessage.REFUSE);
-							reply.setContent("NOT");
-							step = 2;
-						}
-						myAgent.send(reply);
-					} else if (msg.getPerformative() == ACLMessage.ACCEPT_PROPOSAL) {
-						calendar.getCalendarSlots().set(Integer.parseInt(msg.getContent()), 0.0);
-						step = 0;
-					} else
-						step = 2;
+			}
+			if (step == 1){
+				MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.REQUEST);
+
+				ACLMessage msg = myAgent.receive(mt);
+				if (msg != null){
+					System.out.println(msg);
 				}
-			} else {
-				block();
 			}
 		}
 	}
