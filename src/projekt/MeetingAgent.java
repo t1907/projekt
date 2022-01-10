@@ -10,11 +10,13 @@ import jade.domain.FIPAException;
 import jade.domain.FIPAAgentManagement.DFAgentDescription;
 import jade.domain.FIPAAgentManagement.ServiceDescription;
 
+import java.util.ArrayList;
+
 public class MeetingAgent extends Agent {
 	public AID[] meetAgentsList;
 	private MeetingAgentGui myGui;
 	private Calendar calendar;
-	private int dayOfMeeting;
+	private int dayOfMeeting = -1;
 
 	@Override
 	protected void setup() {
@@ -42,7 +44,7 @@ public class MeetingAgent extends Agent {
 		}
 		addBehaviour(new TickerBehaviour(this, interval) {
 			protected void onTick() {
-				if (dayOfMeeting > 0) {
+				if (dayOfMeeting >= 0) {
 					DFAgentDescription template = new DFAgentDescription();
 					ServiceDescription sd = new ServiceDescription();
 					sd.setType("meetingAgent");
@@ -97,11 +99,13 @@ public class MeetingAgent extends Agent {
 	private class RequestMeeting extends Behaviour {
 		private MessageTemplate mt;
 		private int step = 0;
+		private int repliesCnt = 0;
+		private double sumOfPreference;
 
 		@Override
 		public void action() {
-			if (step == 0) {
-				if (dayOfMeeting > 0) {
+			switch (step) {
+				case 0:
 					System.out.println(getAID().getLocalName() + ": is looking for meeting on day " + dayOfMeeting);
 
 					ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
@@ -115,38 +119,69 @@ public class MeetingAgent extends Agent {
 					myAgent.send(cfp);
 					mt = MessageTemplate.and(MessageTemplate.MatchConversationId("meeting"),
 							MessageTemplate.MatchInReplyTo(cfp.getReplyWith()));
-
 					step = 1;
-				}
-			} else if (step == 1) {
-				ACLMessage reply = myAgent.receive(mt);
-				if (reply != null) {
-					if (reply.getPerformative() == ACLMessage.AGREE) {
-						if (reply.getContent().equals("OK"))
-							step = 2;
-					}else if (reply.getPerformative() == ACLMessage.REFUSE) {
-						if (reply.getContent().equals("NOT")){
-							System.out.println(dayOfMeeting + " is not available.");
+					break;
+				case 1:
+					ACLMessage reply = myAgent.receive(mt);
+					if (reply != null) {
+						if (reply.getPerformative() == ACLMessage.AGREE) {
+							System.out.println(getAID().getLocalName() + ": " + reply.getSender().getLocalName() +
+									" says that can meet on day " + dayOfMeeting);
+						} else if (reply.getPerformative() == ACLMessage.REFUSE) {
+							System.out.println(getAID().getLocalName() + ": " + reply.getSender().getLocalName() +
+									" says that cannot attend meeting on day " + dayOfMeeting);
 						}
+						repliesCnt++;
+						if (repliesCnt >= meetAgentsList.length) {
+							step = 2;
+						}
+					} else {
+						block();
 					}
-				} else
-					block();
+					break;
+				case 2:
+					ACLMessage meeting = new ACLMessage(ACLMessage.PROPOSE);
+					for (AID aid : meetAgentsList) {
+						meeting.addReceiver(aid);
+					}
+					meeting.setContent(Integer.toString(dayOfMeeting));
+					meeting.setConversationId("preference");
+					meeting.setReplyWith("preference" + System.currentTimeMillis()); //unique value
+					meeting.setSender(getAID()); // set which agent is sending
+					myAgent.send(meeting);
+					mt = MessageTemplate.and(MessageTemplate.MatchConversationId("preference"),
+							MessageTemplate.MatchInReplyTo(meeting.getReplyWith()));
+					step = 3;
+					break;
+				case 3:
+					reply = myAgent.receive(mt);
+					if (reply != null) {
+						if (reply.getPerformative() == ACLMessage.INFORM) {
+							double agentPref = Double.parseDouble(reply.getContent());
+							System.out.println(getAID().getLocalName() + ": " + reply.getSender().getLocalName() + " says "
+									+ "preference of day " + dayOfMeeting + " is " + agentPref);
+						}
+						step = 4;
+					} else {
+						block();
+					}
+					break;
 			}
 		}
 
 		@Override
 		public boolean done() {
-			if (step == 2)
+			if (step == 4)
 				System.out.println(getAID().getLocalName() + ": request for meeting is done!");
-			return (step == 2);
+			return (step == 4);
 		}
 	}
 
 	private class ResolveMeeting extends CyclicBehaviour {
 		private MessageTemplate mt;
 		private int step = 0;
-		private int day;
-		private int slot;
+		private int day = -1;
+
 
 		@Override
 		public void action() {
@@ -154,10 +189,11 @@ public class MeetingAgent extends Agent {
 				mt = MessageTemplate.MatchPerformative(ACLMessage.CFP);
 				ACLMessage msg = myAgent.receive(mt);
 				if (msg != null) {
-					day = Integer.parseInt(msg.getContent());
+					int day = Integer.parseInt(msg.getContent());
 					ACLMessage reply = msg.createReply();
 
-					System.out.println(getAID().getLocalName() + ": " + msg.getSender().getLocalName() + " is asking if I can meet on day " + day);
+					System.out.println(getAID().getLocalName() + ": " + msg.getSender().getLocalName() +
+							" is asking if I can meet on day " + day);
 
 					if (isDayAvailable(day)) {
 						reply.setPerformative(ACLMessage.AGREE);
@@ -169,16 +205,34 @@ public class MeetingAgent extends Agent {
 						step = 2;
 					}
 					myAgent.send(reply);
-				}else {
+				} else {
 					block();
 				}
-			}
-			if (step == 1){
-				MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.REQUEST);
-
+			} else if (step == 1) {
+				mt = MessageTemplate.or(MessageTemplate.MatchPerformative(ACLMessage.PROPOSE),
+						MessageTemplate.MatchPerformative(ACLMessage.ACCEPT_PROPOSAL));
 				ACLMessage msg = myAgent.receive(mt);
-				if (msg != null){
-					System.out.println(msg);
+				if (msg != null) {
+					ACLMessage reply = msg.createReply();
+					if (msg.getPerformative() == ACLMessage.PROPOSE) {
+						day = Integer.parseInt(msg.getContent());
+						if (day >= 0) {
+							double pref = calendar.getCalendarSlots().get(day);
+							reply.setPerformative(ACLMessage.INFORM);
+							reply.setContent(String.valueOf(pref));
+						} else {
+							reply.setPerformative(ACLMessage.REFUSE);
+							reply.setContent("not-available");
+							step = 2;
+						}
+						myAgent.send(reply);
+					} else if (msg.getPerformative() == ACLMessage.ACCEPT_PROPOSAL) {
+						calendar.getCalendarSlots().set(day, 0.0);
+						System.out.println(calendar.toString());
+						step = 0;
+					}
+				} else {
+					block();
 				}
 			}
 		}
