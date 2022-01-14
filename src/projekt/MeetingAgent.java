@@ -10,18 +10,14 @@ import jade.domain.FIPAException;
 import jade.domain.FIPAAgentManagement.DFAgentDescription;
 import jade.domain.FIPAAgentManagement.ServiceDescription;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-
 public class MeetingAgent extends Agent {
-	public AID[] meetAgentsList;
+	public AID[] agentsList;
 	private MeetingAgentGui myGui;
 	private Calendar calendar;
-	private int dayOfMeeting = -1;
+	private int dayOfMeeting;
 
 	@Override
 	protected void setup() {
-		System.out.println("Hello! " + getAID().getLocalName() + " is ready for making meeting.");
 		calendar = new Calendar();
 		myGui = new MeetingAgentGui(this);
 		myGui.display();
@@ -51,12 +47,10 @@ public class MeetingAgent extends Agent {
 					sd.setType("meetingAgent");
 					template.addServices(sd);
 					try {
-						System.out.println(getAID().getLocalName() + ": the following agents have been found");
 						DFAgentDescription[] result = DFService.search(myAgent, template);
-						meetAgentsList = new AID[result.length];
+						agentsList = new AID[result.length];
 						for (int i = 0; i < result.length; ++i) {
-							meetAgentsList[i] = result[i].getName();
-							System.out.println(meetAgentsList[i].getLocalName());
+							agentsList[i] = result[i].getName();
 						}
 					} catch (FIPAException fe) {
 						fe.printStackTrace();
@@ -65,7 +59,7 @@ public class MeetingAgent extends Agent {
 				}
 			}
 		});
-		addBehaviour(new ResolveMeeting());
+		addBehaviour(new ReceiveMeetingRequest());
 	}
 
 	public void requestMeeting(final int index) {
@@ -77,14 +71,6 @@ public class MeetingAgent extends Agent {
 		});
 	}
 
-	public boolean isDayAvailable(int day) {
-		Double preference = calendar.getCalendarSlots().get(day);
-		return preference != 0.0;
-	}
-
-	public double getPreference(int dayOfMeeting) {
-		return calendar.getCalendarSlots().get(dayOfMeeting);
-	}
 
 	@Override
 	protected void takeDown() {
@@ -101,15 +87,19 @@ public class MeetingAgent extends Agent {
 		private MessageTemplate mt;
 		private int step = 0;
 		private int repliesCnt = 0;
+		private int bestDay;
+		private double agentPref;
+		private double currentSumOfPref = 0.0;
+		private double bestSumOfPref = 0.0;
 
 		@Override
 		public void action() {
 			switch (step) {
 				case 0:
-					if (dayOfMeeting >= 0) {
+					if (dayOfMeeting > 0) {
 						System.out.println(getAID().getLocalName() + ": is looking for meeting on day " + dayOfMeeting);
 						ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
-						for (AID aid : meetAgentsList) {
+						for (AID aid : agentsList) {
 							cfp.addReceiver(aid);
 						}
 						cfp.setContent(Integer.toString(dayOfMeeting));
@@ -126,14 +116,16 @@ public class MeetingAgent extends Agent {
 					ACLMessage reply = myAgent.receive(mt);
 					if (reply != null) {
 						if (reply.getPerformative() == ACLMessage.AGREE) {
-							if (reply.getContent().equals("OK")) {
-								System.out.println(reply.getSender().getLocalName() + " agree for meeting  " + dayOfMeeting);
-							}
-						} else if (reply.getPerformative() == ACLMessage.REFUSE) {
+							System.out.println(reply.getSender().getLocalName() + " agree for meeting " + dayOfMeeting +
+									" preference " + reply.getContent());
+							agentPref = Double.parseDouble(reply.getContent());
+							currentSumOfPref += agentPref;
+						}
+						else if (reply.getPerformative() == ACLMessage.REFUSE) {
 							System.out.println(reply.getSender().getLocalName() + " refuse of meeting  " + dayOfMeeting);
 						}
 						repliesCnt++;
-						if (repliesCnt >= meetAgentsList.length) {
+						if (repliesCnt >= agentsList.length) {
 							step = 2;
 						}
 					} else {
@@ -141,43 +133,23 @@ public class MeetingAgent extends Agent {
 					}
 					break;
 				case 2:
-					ACLMessage meeting = new ACLMessage(ACLMessage.PROPOSE);
-					for (AID aid : meetAgentsList) {
-						meeting.addReceiver(aid);
+					System.out.println("Current sum of preference is " + currentSumOfPref);
+					if (currentSumOfPref > bestSumOfPref){
+						bestSumOfPref = currentSumOfPref;
+						bestDay = dayOfMeeting;
 					}
-					double pref = getPreference(dayOfMeeting);
-					meeting.setContent(Double.toString(pref));
-					meeting.setConversationId("preference");
-					meeting.setReplyWith("preference" + System.currentTimeMillis());
-					meeting.setSender(getAID());
-					myAgent.send(meeting);
-					mt = MessageTemplate.and(MessageTemplate.MatchConversationId("preference"),
-							MessageTemplate.MatchInReplyTo(meeting.getReplyWith()));
-					step = 3;
+					dayOfMeeting = 1;
+					currentSumOfPref = 0.0;
+					step = 0;
+
+					if (dayOfMeeting > 30){
+						step = 3;
+					}
 					break;
 				case 3:
-					ACLMessage rep = myAgent.receive(mt);
-					if (rep != null) {
-						if (rep.getPerformative() == ACLMessage.INFORM) {
-							System.out.println(getAID().getLocalName() + ": " + rep.getSender().getLocalName() + " says "
-									+ "preference of day " + dayOfMeeting + " is " + rep.getContent());
-						}
-						step = 4;
-					} else {
-						block();
-					}
+					step = 4;
 					break;
 				case 4:
-					ACLMessage ap = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
-					for (AID aid : meetAgentsList) {
-						ap.addReceiver(aid);
-					}
-					ap.setContent(Integer.toString(dayOfMeeting));
-					ap.setConversationId("meeting-details");
-					ap.setReplyWith("meeting" + System.currentTimeMillis());
-					ap.setSender(getAID());
-					myAgent.send(ap);
-
 					break;
 			}
 		}
@@ -190,58 +162,39 @@ public class MeetingAgent extends Agent {
 		}
 	}
 
-	private class ResolveMeeting extends CyclicBehaviour {
+	private class ReceiveMeetingRequest extends CyclicBehaviour {
 		private MessageTemplate mt;
-		private int day = -1;
 		private int step = 0;
+		private int day;
 
 		@Override
 		public void action() {
-			if (step == 0){
-					mt = MessageTemplate.MatchPerformative(ACLMessage.CFP);
-					ACLMessage msg = myAgent.receive(mt);
-					if (msg != null) {
-						day = Integer.parseInt(msg.getContent());
-						ACLMessage reply = msg.createReply();
-						System.out.println(getAID().getLocalName() + ": " + msg.getSender().getLocalName() +
-								" is asking if I can meet on day " + day);
-
-						if (isDayAvailable(day)) {
-							reply.setPerformative(ACLMessage.AGREE);
-							reply.setContent("OK");
-							step = 1;
-						} else {
-							reply.setPerformative(ACLMessage.REFUSE);
-							reply.setContent("not-available");
-							step = 2;
-						}
-						myAgent.send(reply);
-					}else {
-						block();
-					}
-			}
-			if (step == 1){
-				mt = MessageTemplate.or(MessageTemplate.MatchPerformative(ACLMessage.PROPOSE),
-						MessageTemplate.MatchPerformative(ACLMessage.ACCEPT_PROPOSAL));
-
+			if (step == 0) {
+				mt = MessageTemplate.MatchPerformative(ACLMessage.CFP);
 				ACLMessage msg = myAgent.receive(mt);
 				if (msg != null) {
+					day = Integer.parseInt(msg.getContent());
 					ACLMessage reply = msg.createReply();
-					if (msg.getPerformative() == ACLMessage.PROPOSE) {
-						if (day >= 0) {
-							reply.setPerformative(ACLMessage.INFORM);
-							reply.setContent(String.valueOf(getPreference(day)));
-						} else {
-							reply.setPerformative(ACLMessage.REFUSE);
-							reply.setContent("not-available");
-							step = 2;
-						}
-						myAgent.send(reply);
+					System.out.println(getAID().getLocalName() + ": " + msg.getSender().getLocalName() +
+							" is asking if I can meet on day " + day);
+
+					double agentPref = calendar.getCalendarSlots().get(day);
+					if (agentPref > 0.0) {
+						reply.setPerformative(ACLMessage.AGREE);
+						reply.setContent(String.valueOf(agentPref));
+						step = 1;
+					} else {
+						reply.setPerformative(ACLMessage.REFUSE);
+						reply.setContent("not-available");
+						step = 2;
 					}
+					myAgent.send(reply);
+				} else {
+					block();
 				}
-			}else {
-				block();
 			}
 		}
 	}
 }
+
+
