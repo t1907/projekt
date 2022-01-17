@@ -41,7 +41,7 @@ public class MeetingAgent extends Agent {
 		}
 		addBehaviour(new TickerBehaviour(this, interval) {
 			protected void onTick() {
-				if (dayOfMeeting >= 0 && dayOfMeeting < 30) {
+				if (dayOfMeeting > 0 && dayOfMeeting < 30) {
 					DFAgentDescription template = new DFAgentDescription();
 					ServiceDescription sd = new ServiceDescription();
 					sd.setType("meetingAgent");
@@ -115,13 +115,14 @@ public class MeetingAgent extends Agent {
 					ACLMessage reply = myAgent.receive(mt);
 					if (reply != null) {
 						if (reply.getPerformative() == ACLMessage.AGREE) {
-							System.out.println(reply.getSender().getLocalName() + " agree for meeting " + dayOfMeeting +
-									" preference " + reply.getContent());
+							System.out.println(reply.getSender().getLocalName() + " agree for meeting on day " + dayOfMeeting +
+									" preference is " + reply.getContent());
 							double agentPref = Double.parseDouble(reply.getContent());
 							currentSumOfPref += agentPref;
 						}
 						else if (reply.getPerformative() == ACLMessage.REFUSE) {
-							System.out.println(reply.getSender().getLocalName() + " refuse of meeting  " + dayOfMeeting);
+							System.out.println(reply.getSender().getLocalName() + " refuse of meeting on day " + dayOfMeeting
+									+" preference is " + reply.getContent());
 						}
 						repliesCnt++;
 						if (repliesCnt >= agentsList.length) {
@@ -135,14 +136,17 @@ public class MeetingAgent extends Agent {
 					if (currentSumOfPref > bestSumOfPref){
 						bestSumOfPref = currentSumOfPref;
 						bestDay = dayOfMeeting;
-						dayOfMeeting = 1;
 					}
 					dayOfMeeting++;
 					currentSumOfPref = 0.0;
+					repliesCnt = 0;
 					step = 0;
-					if (dayOfMeeting >= 30){
+					if (dayOfMeeting == 30) {
 						System.out.println("Best day to meet is " + bestDay);
 						System.out.println("Sum of preference is " + bestSumOfPref);
+						dayOfMeeting = -1;
+						calendar.getCalendarSlots().set(bestDay, 0.0);
+						System.out.println(getAID().getLocalName() + " " + calendar);
 						step = 3;
 					}
 					break;
@@ -175,7 +179,7 @@ public class MeetingAgent extends Agent {
 					reply.setContent(String.valueOf(agentPref));
 				} else {
 					reply.setPerformative(ACLMessage.REFUSE);
-					reply.setContent("not-available");
+					reply.setContent("0.0");
 				}
 				myAgent.send(reply);
 			} else {
