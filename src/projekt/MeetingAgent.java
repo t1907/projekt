@@ -97,7 +97,7 @@ public class MeetingAgent extends Agent {
 			switch (step) {
 				case 0:
 					if (dayOfMeeting >= 0) {
-						//System.out.println(getAID().getLocalName() + ": is looking for meeting on day " + dayOfMeeting);
+						System.out.println(getAID().getLocalName() + ": is looking for meeting on day " + dayOfMeeting);
 						ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
 						for (AID aid : agentsList) {
 							cfp.addReceiver(aid);
@@ -116,15 +116,13 @@ public class MeetingAgent extends Agent {
 					ACLMessage reply = myAgent.receive(mt);
 					if (reply != null) {
 						if (reply.getPerformative() == ACLMessage.AGREE) {
-							System.out.println(reply.getSender().getLocalName() + " agree for meeting on day " + dayOfMeeting +
-									" preference is " + reply.getContent());
+							//System.out.println("	" + reply.getSender().getLocalName() + ": agree for meeting on day " + dayOfMeeting);
 							double agentPref = Double.parseDouble(reply.getContent());
 							currentSumOfPref += agentPref;
 							agreeCnt++;
 						}
 						else if (reply.getPerformative() == ACLMessage.REFUSE) {
-							System.out.println(reply.getSender().getLocalName() + " refuse of meeting on day " + dayOfMeeting +
-									" preference is " + reply.getContent());
+							System.out.println("	" + reply.getSender().getLocalName() + ": refuse of meeting on day " + dayOfMeeting);
 						}
 						repliesCnt++;
 						if (repliesCnt >= agentsList.length) {
@@ -135,24 +133,32 @@ public class MeetingAgent extends Agent {
 					}
 					break;
 				case 2:
-					if (currentSumOfPref > bestSumOfPref){
-						bestSumOfPref = currentSumOfPref;
-						bestDay = dayOfMeeting;
-					}
-					dayOfMeeting++;
-					currentSumOfPref = 0.0;
-					agreeCnt = 0;
-					repliesCnt = 0;
-					step = 0;
-					if (dayOfMeeting >= 30) {
-						System.out.println("Best day to meet is " + bestDay + " Sum of preference is" + bestSumOfPref);
-						calendar.getCalendarSlots().set(bestDay, 0.0);
-						System.out.println(getAID().getLocalName() + " " + calendar.getCalendarSlots());
-						dayOfMeeting = -1;
+					if (agreeCnt == agentsList.length){
+						if (currentSumOfPref > bestSumOfPref){
+							bestSumOfPref = currentSumOfPref;
+							bestDay = dayOfMeeting;
+						}
 						currentSumOfPref = 0.0;
-						agreeCnt = 0;
 						repliesCnt = 0;
-						step = 3;
+						agreeCnt = 0;
+						dayOfMeeting++;
+						step = 0;
+						if (dayOfMeeting >= 30) {
+							System.out.println("Best day to meet is " + bestDay + ", sum of preference is " + bestSumOfPref);
+							calendar.getCalendarSlots().set(bestDay, 0.0);
+							System.out.println(getAID().getLocalName() + " " + calendar.getCalendarSlots());
+							dayOfMeeting = -1;
+							currentSumOfPref = 0.0;
+							repliesCnt = 0;
+							agreeCnt = 0;
+							step = 3;
+						}
+					}else {
+						currentSumOfPref = 0.0;
+						repliesCnt = 0;
+						agreeCnt = 0;
+						dayOfMeeting++;
+						step = 0;
 					}
 					break;
 			}
