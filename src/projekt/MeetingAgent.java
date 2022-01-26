@@ -141,6 +141,13 @@ public class MeetingAgent extends Agent {
 						agreeCnt = 0;
 						dayOfMeeting++;
 						step = 0;
+						if (dayOfMeeting >= 30) {
+							dayOfMeeting = -1;
+							bestDay = -1;
+							bestSumOfPref = 0.0;
+							currentSumOfPref = 0.0;
+							step = 3;
+						}
 					}
 					else {
 						if (currentSumOfPref > bestSumOfPref) {
