@@ -162,7 +162,6 @@ public class MeetingAgent extends Agent {
 						if (dayOfMeeting >= 30) {
 							System.out.println("Best day to meet is " + bestDay + ", sum of preference is " + bestSumOfPref);
 							calendar.getCalendarSlots().set(bestDay, 0.0);
-							System.out.println(getAID().getLocalName() + " " + calendar);
 							dayOfMeeting = -1;
 							bestDay = -1;
 							repliesCnt = 0;
