@@ -18,6 +18,7 @@ public class MeetingAgent extends Agent {
 
 	@Override
 	protected void setup() {
+		dayOfMeeting = -1;
 		calendar = new Calendar();
 		myGui = new MeetingAgentGui(this);
 		myGui.display();
@@ -41,7 +42,7 @@ public class MeetingAgent extends Agent {
 		}
 		addBehaviour(new TickerBehaviour(this, interval) {
 			protected void onTick() {
-				if (dayOfMeeting >= 0 && dayOfMeeting <= 30) {
+				if (dayOfMeeting >= 0 && dayOfMeeting < 30) {
 					DFAgentDescription template = new DFAgentDescription();
 					ServiceDescription sd = new ServiceDescription();
 					sd.setType("meetingAgent");
@@ -96,7 +97,7 @@ public class MeetingAgent extends Agent {
 		public void action() {
 			switch (step) {
 				case 0:
-					if (dayOfMeeting >= 0) {
+					if (dayOfMeeting >= 0 && dayOfMeeting < 30) {
 						System.out.println(getAID().getLocalName() + ": is looking for meeting on day " + dayOfMeeting);
 						ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
 						for (AID aid : agentsList) {
@@ -116,7 +117,8 @@ public class MeetingAgent extends Agent {
 					ACLMessage reply = myAgent.receive(mt);
 					if (reply != null) {
 						if (reply.getPerformative() == ACLMessage.AGREE) {
-							//System.out.println("	" + reply.getSender().getLocalName() + ": agree for meeting on day " + dayOfMeeting);
+							System.out.println("	" + reply.getSender().getLocalName() + ": agree for meeting on day " + dayOfMeeting
+							+ " preference is " + reply.getContent());
 							double agentPref = Double.parseDouble(reply.getContent());
 							currentSumOfPref += agentPref;
 							agreeCnt++;
@@ -133,8 +135,15 @@ public class MeetingAgent extends Agent {
 					}
 					break;
 				case 2:
-					if (agreeCnt == agentsList.length){
-						if (currentSumOfPref > bestSumOfPref){
+					if (agreeCnt < agentsList.length){
+						currentSumOfPref = 0.0;
+						repliesCnt = 0;
+						agreeCnt = 0;
+						dayOfMeeting++;
+						step = 0;
+					}
+					else {
+						if (currentSumOfPref > bestSumOfPref) {
 							bestSumOfPref = currentSumOfPref;
 							bestDay = dayOfMeeting;
 						}
@@ -146,21 +155,17 @@ public class MeetingAgent extends Agent {
 						if (dayOfMeeting >= 30) {
 							System.out.println("Best day to meet is " + bestDay + ", sum of preference is " + bestSumOfPref);
 							calendar.getCalendarSlots().set(bestDay, 0.0);
-							System.out.println(getAID().getLocalName() + " " + calendar.getCalendarSlots());
+							System.out.println(getAID().getLocalName() + " " + calendar);
 							dayOfMeeting = -1;
-							currentSumOfPref = 0.0;
+							bestDay = -1;
 							repliesCnt = 0;
 							agreeCnt = 0;
+							bestSumOfPref = 0.0;
+							currentSumOfPref = 0.0;
 							step = 3;
 						}
-					}else {
-						currentSumOfPref = 0.0;
-						repliesCnt = 0;
-						agreeCnt = 0;
-						dayOfMeeting++;
-						step = 0;
+						break;
 					}
-					break;
 			}
 		}
 
@@ -181,14 +186,15 @@ public class MeetingAgent extends Agent {
 			if (msg != null) {
 				int day = Integer.parseInt(msg.getContent());
 				ACLMessage reply = msg.createReply();
-
-				double agentPref = calendar.getCalendarSlots().get(day);
-				if (agentPref > 0.0) {
-					reply.setPerformative(ACLMessage.AGREE);
-					reply.setContent(String.valueOf(agentPref));
-				} else {
-					reply.setPerformative(ACLMessage.REFUSE);
-					reply.setContent(String.valueOf(agentPref));
+				if (day >=0 && day <30) {
+					double agentPref = calendar.getCalendarSlots().get(day);
+					if (agentPref > 0.0) {
+						reply.setPerformative(ACLMessage.AGREE);
+						reply.setContent(String.valueOf(agentPref));
+					} else {
+						reply.setPerformative(ACLMessage.REFUSE);
+						reply.setContent("not available");
+					}
 				}
 				myAgent.send(reply);
 			} else {
